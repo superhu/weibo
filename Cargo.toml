@@ -1,0 +1,30 @@
+[package]
+name = "weibo"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { version = "1.0.79", features = ["backtrace"] }
+chrono = { version = "0.4.31", default-features = false }
+futures = "0.3.30"
+image = "0.25.1"
+lazy_static = "1.4.0"
+regex = "1.10.2"
+reqwest = { version = "0.12.2", features = [
+    "json",
+    "gzip",
+    "blocking",
+    "cookies",
+] }
+reqwest_cookie_store = "0.7.0"
+serde = { version = "1.0.195", features = ["serde_derive"] }
+serde_json = "1.0.111"
+tokio = { version = "1.35.1", features = [
+    "macros",
+    "rt-multi-thread",
+    "time",
+    "fs",
+] }
+
