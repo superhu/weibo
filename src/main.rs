@@ -8,6 +8,8 @@ use ::nwg::{self as nwg, GridLayout, Icon, Monitor, NativeUi, Window};
 use ::nwg_webview_ctrl::{WebviewContainer, WebviewContainerFlags};
 use std::cell::RefCell;
 use ::std::error::Error;
+use std::path::Path;
+
 
 
 #[derive(Default, NwgUi)]
@@ -22,15 +24,12 @@ pub struct DemoUi {
     #[nwg_layout(margin: [0; 4], parent: window, max_row: Some(1), max_column: Some(2), spacing: 0)]
     grid: GridLayout,
 
-    // #[nwg_layout(margin: [0; 4], parent: window, max_row: Some(1), max_column: Some(2), spacing: 0)]
-    // grid1: GridLayout,
-
     #[nwg_control(flags: "VISIBLE", parent: window, window: &data.window, language: "en_us")]
     #[nwg_layout_item(layout: grid, row: 0, col: 1)]
     webview_container: WebviewContainer,
 
     #[nwg_layout(margin: [0; 4], parent: window, max_row: Some(6), max_column: Some(1), spacing: 0)]
-    // #[nwg_layout_item(layout: grid, row: 0, col: 0)]
+    #[nwg_layout_item(layout: grid, row: 0, col: 0)]
     grid2: GridLayout,
 
     #[nwg_control(text: "Say my name")]
@@ -51,6 +50,8 @@ impl DemoUi {
     const SIZE: (i32, i32) = (1024, 768);
     fn say_hello(&self) {
         let (_env, _contrller, webview) = self.webview_container.ready_block().unwrap();
+        webview.open_dev_tools_window();
+
         let _ = webview.execute_script("document.cookie", move |js_cookie| {
             nwg::simple_message("title", &js_cookie);
             fetch(js_cookie);
@@ -112,6 +113,27 @@ impl DemoUi {
         executor.spawner().spawn_local(
             async move {
                 let (_, _, webview) = webview_ready_fut.await;
+                let _ = webview.add_web_resource_requested_filter("https://weibo.com/*", webview2_sys::WebResourceContext::All);
+                let _ = webview.add_web_resource_requested(|_wb, args| {
+                    if let Ok(request) = args.get_request() {
+                        if let Ok(headers) = request.get_headers() {
+                            if let Ok(cookie) = headers.get_header("Cookie") {
+                                
+                                if !Path::new("cookie.json").exists() {
+                                    println!("Cookie:{}", &cookie);
+    
+                                    let _ = std::fs::write("cookie.json",cookie.as_bytes());
+                                }
+                            }
+                        }
+                    }
+                    
+                
+                    
+                    // nwg::simple_message("h", &format!("headers:{:?}", headers));
+                    // Ok(EventRegistrationToken::try_into())
+                    Ok(())
+                });
                 webview.navigate(url)?;
                 Ok::<_, Box<dyn Error>>(())
             }
@@ -128,7 +150,7 @@ impl DemoUi {
 fn fetch(cookie: String) {
     nwg::simple_message("title", &cookie);
     // let file = std::fs::File::create("weibo_cookie.json");
-    std::fs::write("cookie.json", cookie.as_bytes());
+    // std::fs::write("cookie.json", cookie.as_bytes());
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

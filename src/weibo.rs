@@ -103,7 +103,7 @@ pub fn get_headers1() -> Result<Value> {
             "server-version": "v2024.04.30.1",
             "x-requested-with": "XMLHttpRequest",
             "x-xsrf-token": "uDcMhz0AWo8JQAP1mgoHV9s8",
-            "cookie": "login_sid_t=82cea204daa23e85152ed298dde251bc; cross_origin_proto=SSL; _s_tentry=weibo.com; Apache=6046515131505.311.1653830647774; SINAGLOBAL=6046515131505.311.1653830647774; XSRF-TOKEN=GQKKO02vZOkV_yqvsBUGDWEM; SSOLoginState=1682605537; ULV=1685243937594:1:1:1:6046515131505.311.1653830647774:; SCF=ArkeVXUTqa_IfHxK4k7cfmAC-jkG52QdK7QxXl4JP2J2zXyRR2Qv6qnLJUxxFha4iReWerzTdy5kHBBFTd-xfn4.; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhY9rkcIGocADgl6y8XwzKX5JpX5KMhUgL.Fo2NSK20ShnRSK52dJLoI7_0UPWLMJyfeo5p15tt; UOR=,,www.google.com; ALF=1717487871; SUB=_2A25LM0uvDeRhGedJ7lMS9CbEzjyIHXVoMcFnrDV8PUJbkNANLRjdkW1NUeGMqwG49y5mu_0IyYn_GxqbVl7i_p6B; WBPSESS=HRsQ-3pQNdFRfLXEGcltKV7a3vOMM5uiyYoeXuddqb9Z563hBfC_V-dzoPnivzi1qGEv17rJoaeKJw_YfcvneiH8MLlCG7eC-bkgNn1WQpNCiuZrWCCqvUjgMjRkVZ4mxI2fP5HlUyf1_MAHvjToxQ==",
+            "cookie": "XSRF-TOKEN=uDcMhz0AWo8JQAP1mgoHV9s8; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhY9rkcIGocADgl6y8XwzKX5JpX5KzhUgL.Fo2NSK20ShnRSK52dJLoI7_0UPWLMJyfeo5p15tt; ALF=02_1718107963",
             "Referer": "https://www.weibo.com/mygroups?gid=4070721837943483",
             "Referrer-Policy": "strict-origin-when-cross-origin"
           }
@@ -111,7 +111,7 @@ pub fn get_headers1() -> Result<Value> {
     let cookie = fs::read("cookie.json");
     if let Ok(ck) = cookie {
         let cookie_str :String = String::from_utf8(ck).unwrap();
-        nwg::simple_message("1", &cookie_str);
+        println!("{}", &cookie_str);
         println!("cookie_str={}",cookie_str);
         for pair in cookie_str.split(";").into_iter() {
             if pair.contains("XSRF-TOKEN") {
