@@ -11,6 +11,10 @@ chrono = { version = "0.4.31", default-features = false }
 futures = "0.3.30"
 image = "0.25.1"
 lazy_static = "1.4.0"
+
+nwg-webview-ctrl = "0.1.2"
+nwd = {version = "1.0.3", package ="native-windows-derive"}
+nwg = {version = "1.0.12", default-features = false, features = ["high-dpi", "image-decoder"], package = "native-windows-gui"}
 regex = "1.10.2"
 reqwest = { version = "0.12.2", features = [
     "json",
@@ -27,4 +31,10 @@ tokio = { version = "1.35.1", features = [
     "time",
     "fs",
 ] }
+[[bin]]
+name = "weibo"
+path = "src/weibo.rs"
+[[bin]]
+name = "main"
+path = "src/main.rs"
 

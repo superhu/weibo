@@ -1,134 +1,148 @@
-use anyhow::Result;
-use reqwest::{
-    blocking::{Client, Response},
-    header::{HeaderMap, HeaderName, HeaderValue},
-    StatusCode,
-};
-use serde_json::{json, Value};
-use std::{io::prelude::*, path::Path};
-use std::{str::FromStr, sync::Arc};
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use reqwest_cookie_store::CookieStoreMutex;
 
-const WEIBO_PIC_API: &str = "https://www.weibo.com/ajax/feed/groupstimeline?list_id=4070721837943483&refresh=4&fast_refresh=1&count=25";
-const PAGES: i32 = 20;
-fn main() -> Result<()> {
-    let max_id: Option<String> = Option::None;
-    let mut n = 0;
+use ::futures::{executor::LocalPool, task::LocalSpawnExt, FutureExt};
+use nwd::NwgUi;
 
-    let max_id1 = downloadOnePage(max_id, n)?;
+use ::nwg::{self as nwg, GridLayout, Icon, Monitor, NativeUi, Window};
+use ::nwg_webview_ctrl::{WebviewContainer, WebviewContainerFlags};
+use std::cell::RefCell;
+use ::std::error::Error;
 
-    println!("max_id:{:?}", max_id1);
-    Ok(())
+
+#[derive(Default, NwgUi)]
+pub struct DemoUi {
+    #[nwg_resource(source_bin: Some(include_bytes!("../assets/weibo.ico")), size: Some((16, 16)), strict: true)]
+    app_icon: Icon,
+
+    #[nwg_control(size: DemoUi::SIZE, position: DemoUi::position(), icon: Some(&data.app_icon), title: "内嵌 WebView 例程", flags: "MAIN_WINDOW|VISIBLE")]
+    #[nwg_events(OnWindowClose: [nwg::stop_thread_dispatch()])]
+    window: Window,
+
+    #[nwg_layout(margin: [0; 4], parent: window, max_row: Some(1), max_column: Some(2), spacing: 0)]
+    grid: GridLayout,
+
+    // #[nwg_layout(margin: [0; 4], parent: window, max_row: Some(1), max_column: Some(2), spacing: 0)]
+    // grid1: GridLayout,
+
+    #[nwg_control(flags: "VISIBLE", parent: window, window: &data.window, language: "en_us")]
+    #[nwg_layout_item(layout: grid, row: 0, col: 1)]
+    webview_container: WebviewContainer,
+
+    #[nwg_layout(margin: [0; 4], parent: window, max_row: Some(6), max_column: Some(1), spacing: 0)]
+    // #[nwg_layout_item(layout: grid, row: 0, col: 0)]
+    grid2: GridLayout,
+
+    #[nwg_control(text: "Say my name")]
+    #[nwg_layout_item(layout: grid2, row: 0, col: 0)]
+    #[nwg_events( OnButtonClick: [DemoUi::say_hello] )]
+    hello_button: nwg::Button,
+
+    #[nwg_control(text: "addItem")]
+    #[nwg_layout_item(layout: grid2, row: 1, col: 0)]
+    #[nwg_events( OnButtonClick: [DemoUi::add_item] )]
+    hello_button2: nwg::Button,
+
+    buttons: RefCell<Vec<nwg::Button>>,
+    handlers: RefCell<Vec<nwg::EventHandler>>,
 }
-fn downloadOnePage(max_id: Option<String>, mut n: i32) -> Result<Option<String>> {
-    let client1 = get_client(get_headers1()?)?;
-    let img = "https://wx3.sinaimg.cn/large/a0d77288ly1hos9my87vsj20zj1hc7eg.jpg";
-    let mut url = String::new() + WEIBO_PIC_API;
-    if max_id.is_some() {
-        url = String::new() + WEIBO_PIC_API + "&max_id=" + &max_id.unwrap();
-    }
-    println!("n={},url=========={}", n, url);
-    let mut result: Value = client1.get(url).send().expect("http error").json()?;
 
-    let mut list = Vec::new();
-    if let Value::Array(posts) = result["statuses"].take() {
-        for mut p in posts.into_iter() {
-            // let pic_infos = p["pic_infos"].take();
-            if let Value::Object(pic_infos) = p["pic_infos"].take() {
-                if let Value::Array(pic_ids) = p["pic_ids"].take() {
-                    for pi_id in pic_ids.into_iter() {
-                        let id = match pi_id {
-                            Value::String(id) => id,
-                            _ => "".to_string(),
-                        };
-                        let pic = pic_infos.get(&id).unwrap();
-                        let img_url = &pic["largest"]["url"];
-                        if let Value::String(aa) = img_url {
-                            list.push((aa.to_owned(), id));
+impl DemoUi {
+    const SIZE: (i32, i32) = (1024, 768);
+    fn say_hello(&self) {
+        let (_env, _contrller, webview) = self.webview_container.ready_block().unwrap();
+        let _ = webview.execute_script("document.cookie", move |js_cookie| {
+            nwg::simple_message("title", &js_cookie);
+            fetch(js_cookie);
+            Ok(())
+        });
+    }
+    fn add_item(&self) {
+        let mut new_button = Default::default();
+        nwg::Button::builder()
+            .text("11")
+            .size((20, 10))
+            .parent(&self.window)
+            .build(&mut new_button)
+            .expect("Failed to build button");
+
+        let mut buttons = self.buttons.borrow_mut();
+        let mut handlers = self.handlers.borrow_mut();
+
+        let blen = buttons.len() as u32;
+        let x = blen + 2;
+
+        if x < 6 {
+            self.grid2.add_child(0, x, &new_button);
+            self.grid.min_size([10, 10]);
+
+            let new_button_handle = new_button.handle;
+            let handler = nwg::bind_event_handler(
+                &new_button.handle,
+                &self.window.handle,
+                move |evt, _evt_data, handle| match evt {
+                    nwg::Event::OnButtonClick => {
+                        if handle == new_button_handle {
+                            nwg::simple_message("title", "&content");
                         }
                     }
-                }
-            }
-        }
-    }
-    for (i, (url, id)) in list.iter().enumerate() {
-        let resp = client1.get(url).send()?;
-        if resp.status().is_success() {
-            let base_dir = String::new();
-            let img_path = base_dir + "d:/Pictures/weiback/" + &id + ".jpg";
-            let path = Path::new(&img_path);
-            if !path.exists() {
-                let mut pic_file: std::fs::File = std::fs::File::create(path)?;
-                let _ = pic_file.write_all(resp.bytes()?.as_ref());
-                println!("download:{}", &url);
-            } else {
-                println!("exist:{}", &url);
-            }
-        }
-    }
-
-    let max_id_option = &result["max_id_str"];
-    if max_id_option.is_string() {
-        let x = Some(max_id_option.as_str().unwrap().to_owned());
-        n += 1;
-        if n < PAGES {
-            let y = downloadOnePage(x, n)?;
-            return Ok(y);
-        } else {
-            return Ok(Option::None);
-        }
-    }
-    Ok(Option::None)
-}
-
-pub fn get_headers1() -> Result<Value> {
-    let headers = json!(
-        {
-            "accept": "application/json, text/plain, */*",
-            "accept-language": "zh-CN,zh;q=0.9",
-            "client-version": "v2.45.7",
-            "priority": "u=1, i",
-            "sec-ch-ua": "\"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-            "server-version": "v2024.04.29.1",
-            "x-requested-with": "XMLHttpRequest",
-            "x-xsrf-token": "GQKKO02vZOkV_yqvsBUGDWEM",
-            "cookie": "login_sid_t=82cea204daa23e85152ed298dde251bc; cross_origin_proto=SSL; _s_tentry=weibo.com; Apache=6046515131505.311.1653830647774; SINAGLOBAL=6046515131505.311.1653830647774; XSRF-TOKEN=GQKKO02vZOkV_yqvsBUGDWEM; UOR=,,login.sina.com.cn; SSOLoginState=1682605537; ULV=1685243937594:1:1:1:6046515131505.311.1653830647774:; SCF=ArkeVXUTqa_IfHxK4k7cfmAC-jkG52QdK7QxXl4JP2J2zXyRR2Qv6qnLJUxxFha4iReWerzTdy5kHBBFTd-xfn4.; ALF=1716648455; SUB=_2A25LLh1XDeRhGedJ7lMS9CbEzjyIHXVoQhCfrDV8PUJbkNB-LU79kW1NUeGMq2L9-PQhkwZvCCuvu77ZzHM53lzz; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhY9rkcIGocADgl6y8XwzKX5JpX5KMhUgL.Fo2NSK20ShnRSK52dJLoI7_0UPWLMJyfeo5p15tt; WBPSESS=HRsQ-3pQNdFRfLXEGcltKV7a3vOMM5uiyYoeXuddqb9Z563hBfC_V-dzoPnivzi1qGEv17rJoaeKJw_YfcvnevX-NufGSPvSVx2wGSzXRAM23TOonE89-6eXflxRkVTOPninlZj3nBjBPJzTcf4r-Q==",
-            "Referer": "https://www.weibo.com/mygroups?gid=4070721837943483",
-            "Referrer-Policy": "strict-origin-when-cross-origin"
-          }
-    );
-    Ok(headers)
-}
-
-pub fn get_client(mut headers: Value) -> Result<Client> {
-    let mut list = Vec::new();
-    if let Value::Object(map) = headers.take() {
-        for (k, v) in map {
-            let str_value = match v {
-                Value::String(sv) => sv,
-                _ => String::new(),
-            };
-            let a = (
-                HeaderName::from_str(&k)?,
-                HeaderValue::from_str(&str_value)?,
+                    _ => {}
+                },
             );
-            list.push(a);
+
+            buttons.push(new_button);
+            handlers.push(handler);
+        } else {
+            // self.grid.remove_child_by_pos(1, 0);
+            self.window.set_visible(false);
         }
     }
-    let header_map = HeaderMap::from_iter(list);
 
-    let cookie_store = Arc::new(CookieStoreMutex::default());
-    let client = Client::builder()
-        .cookie_store(true)
-        .cookie_provider(cookie_store.clone())
-        .default_headers(header_map)
-        .build()
-        .unwrap();
-    Ok(client)
+    /// 主窗体初始显示位置
+    fn position() -> (i32, i32) {
+        (
+            (Monitor::width() - Self::SIZE.0) / 2,
+            (Monitor::height() - Self::SIZE.1) / 2,
+        )
+    }
+    /// 业务处理逻辑封装成员方法
+    pub fn executor(&self, url: &'static str) -> Result<LocalPool, Box<dyn Error>> {
+        let executor = LocalPool::new();
+        let webview_ready_fut = self.webview_container.ready_fut()?;
+        executor.spawner().spawn_local(
+            async move {
+                let (_, _, webview) = webview_ready_fut.await;
+                webview.navigate(url)?;
+                Ok::<_, Box<dyn Error>>(())
+            }
+            .map(|result| {
+                if let Err(err) = result {
+                    eprintln!("[app_main]{err}");
+                }
+            }),
+        )?;
+        Ok(executor)
+    }
 }
+
+fn fetch(cookie: String) {
+    nwg::simple_message("title", &cookie);
+    // let file = std::fs::File::create("weibo_cookie.json");
+    std::fs::write("cookie.json", cookie.as_bytes());
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+
+    nwg::init()?;
+    // 主窗体
+    let demo_ui_app = DemoUi::build_ui(Default::default())?;
+    // 业务处理逻辑
+    let mut executor = demo_ui_app.executor("https://weibo.com")?;
+    // 阻塞主线程，等待用户手动关闭主窗体
+    nwg::dispatch_thread_events_with_callback(move ||
+        // 以 win32 UI 的事件循环为【反应器】，对接 futures crate 的【执行器】
+        executor.run_until_stalled());
+    Ok(())
+}
+
+
