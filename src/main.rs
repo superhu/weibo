@@ -1,15 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-
 use ::futures::{executor::LocalPool, task::LocalSpawnExt, FutureExt};
 use nwd::NwgUi;
 
 use ::nwg::{self as nwg, GridLayout, Icon, Monitor, NativeUi, Window};
 use ::nwg_webview_ctrl::{WebviewContainer, WebviewContainerFlags};
-use std::cell::RefCell;
 use ::std::error::Error;
+use std::cell::{OnceCell, RefCell};
+use std::collections::HashMap;
 use std::path::Path;
-
 
 
 #[derive(Default, NwgUi)]
@@ -44,13 +43,14 @@ pub struct DemoUi {
 
     buttons: RefCell<Vec<nwg::Button>>,
     handlers: RefCell<Vec<nwg::EventHandler>>,
+    // config: Box<dyn Config>,
 }
 
 impl DemoUi {
     const SIZE: (i32, i32) = (1024, 768);
     fn say_hello(&self) {
         let (_env, _contrller, webview) = self.webview_container.ready_block().unwrap();
-        webview.open_dev_tools_window();
+        // webview.open_dev_tools_window();
 
         let _ = webview.execute_script("document.cookie", move |js_cookie| {
             nwg::simple_message("title", &js_cookie);
@@ -107,34 +107,40 @@ impl DemoUi {
         )
     }
     /// 业务处理逻辑封装成员方法
-    pub fn executor(&self, url: &'static str) -> Result<LocalPool, Box<dyn Error>> {
+    pub fn executor(&self) -> Result<LocalPool, Box<dyn Error>> {
         let executor = LocalPool::new();
         let webview_ready_fut = self.webview_container.ready_fut()?;
         executor.spawner().spawn_local(
             async move {
                 let (_, _, webview) = webview_ready_fut.await;
-                let _ = webview.add_web_resource_requested_filter("https://weibo.com/*", webview2_sys::WebResourceContext::All);
-                let _ = webview.add_web_resource_requested(|_wb, args| {
+                let _ = webview.add_web_resource_requested_filter(
+                    FILTER_URL,
+                    webview2_sys::WebResourceContext::All,
+                );
+
+                let _ = webview.add_web_resource_requested(move|_wb, args| {
                     if let Ok(request) = args.get_request() {
                         if let Ok(headers) = request.get_headers() {
-                            if let Ok(cookie) = headers.get_header("Cookie") {
-                                
+                            if request
+                                .get_uri()
+                                .unwrap()
+                                .contains(COOKIE_URL)
+                            {
+                                let mut map: HashMap<String, String> = HashMap::new();
+                                for (k, v) in headers.get_iterator().unwrap() {
+                                    map.insert(k, v);
+                                }
+                                let json = serde_json::to_string_pretty(&map).unwrap();
                                 if !Path::new("cookie.json").exists() {
-                                    println!("Cookie:{}", &cookie);
-    
-                                    let _ = std::fs::write("cookie.json",cookie.as_bytes());
+                                    println!("Cookie:{}", &json);
+                                    let _ = std::fs::write("cookie.json", json.as_bytes());
                                 }
                             }
                         }
                     }
-                    
-                
-                    
-                    // nwg::simple_message("h", &format!("headers:{:?}", headers));
-                    // Ok(EventRegistrationToken::try_into())
                     Ok(())
                 });
-                webview.navigate(url)?;
+                webview.navigate(HOME_URL)?;
                 Ok::<_, Box<dyn Error>>(())
             }
             .map(|result| {
@@ -153,18 +159,21 @@ fn fetch(cookie: String) {
     // std::fs::write("cookie.json", cookie.as_bytes());
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+// use weibo::weibo;
 
+static HOME_URL: &str = "https://weibo.com";
+static FILTER_URL: &str = "https://weibo.com/*";
+static COOKIE_URL: &str = "ajax/feed/groupstimeline";
+fn main() -> Result<(), Box<dyn Error>> {
     nwg::init()?;
+
     // 主窗体
-    let demo_ui_app = DemoUi::build_ui(Default::default())?;
+    let  demo_ui_app = DemoUi::build_ui(Default::default())?;
     // 业务处理逻辑
-    let mut executor = demo_ui_app.executor("https://weibo.com")?;
+    let mut executor = demo_ui_app.executor()?;
     // 阻塞主线程，等待用户手动关闭主窗体
     nwg::dispatch_thread_events_with_callback(move ||
         // 以 win32 UI 的事件循环为【反应器】，对接 futures crate 的【执行器】
         executor.run_until_stalled());
     Ok(())
 }
-
-

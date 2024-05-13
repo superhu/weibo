@@ -13,49 +13,9 @@ use std::collections::HashMap;
 
 
 use reqwest_cookie_store::CookieStoreMutex;
-use serde::{Deserialize, Serialize};
-
-
 
 const WEIBO_PIC_API: &str = "https://www.weibo.com/ajax/feed/groupstimeline?list_id=4070721837943483&refresh=4&fast_refresh=1&count=25";
 const PAGES: i32 = 20;
-
-pub trait Config{
-    fn get_home_url(self) -> String;
-    fn get_filter_url(self) -> String;
-    fn get_cookie_filter_url(self) -> String;
-}
-
-#[derive( Debug, Clone, PartialEq,Serialize,Deserialize,Default)]
-pub struct Weibo {
-    home_url: String,
-    filter_url: String,
-    cookie_url: String,
-}
-
-impl Weibo{
-    pub fn new(home_url:String, filter_url:String, cookie_url:String) ->Self{
-        Self{
-            home_url,
-            filter_url,
-            cookie_url,
-        }
-    }
-}
-
-impl Config for Weibo {
-    fn get_home_url(self) -> String {
-        self.home_url
-    }
-
-    fn get_filter_url(self) -> String {
-        self.filter_url
-    }
-
-    fn get_cookie_filter_url(self) -> String {
-        self.cookie_url
-    }
-}
 fn main() -> Result<()> {
     // test();
     let max_id: Option<String> = Option::None;
@@ -171,7 +131,7 @@ pub fn get_client(header_map: HeaderMap) -> Result<Client> {
     //     .cookie_store(true)
     //     // .cookie_provider(cookie_store.clone())
     //     .default_headers(header_map)
-    //
+    //     
     //     .build()
     //     .unwrap();
     Ok(client1)
