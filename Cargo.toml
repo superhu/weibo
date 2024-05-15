@@ -7,15 +7,15 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1.0.79", features = ["backtrace"] }
-chrono = { version = "0.4.31", default-features = false }
+#chrono = { version = "0.4.31", default-features = false }
 futures = "0.3.30"
-image = "0.25.1"
-lazy_static = "1.4.0"
+#image = "0.25.1"
+#lazy_static = "1.4.0"
 
 nwg-webview-ctrl = "0.1.2"
 nwd = {version = "1.0.3", package ="native-windows-derive"}
-nwg = {version = "1.0.12", default-features = false, features = ["high-dpi", "image-decoder"], package = "native-windows-gui"}
-regex = "1.10.2"
+nwg = {version = "1.0.12", default-features = false, features = ["high-dpi", "image-decoder","rich-textbox", "tabs","flexbox"], package = "native-windows-gui"}
+#regex = "1.10.2"
 reqwest = { version = "0.12.2", features = [
     "json",
     "gzip",
@@ -32,10 +32,15 @@ tokio = { version = "1.35.1", features = [
     "fs",
 ] }
 webview2-sys = "0.1.1"
+#once_cell = "1.19.0"
+#arc-swap = "1.7.1"
 [[bin]]
 name = "weibo"
 path = "src/weibo.rs"
 [[bin]]
 name = "main"
 path = "src/main.rs"
+[[bin]]
+name = "twitter"
+path = "src/twitter.rs"
 

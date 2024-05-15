@@ -1,117 +1,43 @@
-
-use anyhow::{Error, Result};
-
-use reqwest::{
-    blocking::{Client},
-    header::{HeaderMap, HeaderName, HeaderValue},
-
-};
-use serde_json::{json, Value};
-use std::{fs, io::prelude::*, path::Path};
-use std::{str::FromStr, sync::Arc};
+use std::{fs, io::prelude::*};
 use std::collections::HashMap;
+use std::str::FromStr;
+
+use anyhow::Result;
+use reqwest::{
+    blocking::Client,
+    header::{HeaderMap, HeaderName, HeaderValue},
+};
 
 
-use reqwest_cookie_store::CookieStoreMutex;
-
-const WEIBO_PIC_API: &str = "https://www.weibo.com/ajax/feed/groupstimeline?list_id=4070721837943483&refresh=4&fast_refresh=1&count=25";
-const PAGES: i32 = 20;
+const TWITTER_URI: &str = "https://video.twimg.com/ext_tw_video/1399524962646462466/pu/vid/0/3000/720x1280/6HSBTv0GxP4nEv5L.ts";
 fn main() -> Result<()> {
-    // test();
-    let max_id: Option<String> = Option::None;
-    let n = 0;
-    let max_id1 = download_one_page(max_id, n)?;
-    println!("max_id:{:?}", max_id1);
+    let video_text = fs::read_to_string("video.txt").unwrap();
+    let list:Vec<&str> = video_text.split("\n").collect();
+    for uri in list {
+        get(uri);
+    }
+    // get(TWITTER_URI);
     Ok(())
 }
-fn test() -> Result<()>{
-
+pub fn get(url: &str) {
+    println!("download:{}", url);
+    let array :Vec<&str> = url.rsplit("/").collect();
+    let filename  = array.get(0).unwrap();
     let client = Client::new();
-    let resp = client. get(WEIBO_PIC_API)
+    let mut resp = client. get(url)
         // .headers(get_headers().unwrap())
-        .send()?;
-
-    println!("{}", resp.status());
-    println!("{:?}", &resp.json()?);
-    // println!("{:?}", String::from_utf8(resp.bytes()?.to_vec()));
-    Ok(())
-
+        .send()
+        .expect("11")
+        .bytes()
+        .expect("22")
+        ;
+    fs::write(filename, resp.as_ref()).expect("fail");
 }
-fn download_one_page(max_id: Option<String>, mut n: i32) -> Result<Option<String>> {
-    let client1 = get_client(get_headers()?)?;
-    let mut url = String::new() + WEIBO_PIC_API;
-    if max_id.is_some() {
-        url = String::new() + WEIBO_PIC_API + "&max_id=" + &max_id.unwrap();
-    }
-    println!("n={},url=========={}", n, url);
-    let mut response = client1.get(url)
-        .headers(get_headers().unwrap())
-        .send()?;
-    let mut result:Value = Value::default();
 
-    if response.status().is_success() {
-        result = response.json()?;
-    } else {
-        let body = String::from_utf8(response.bytes().unwrap().to_vec())?;
-        println!("{}", body);
-        return Ok(None);
-    }
-
-
-    let mut list = Vec::new();
-    if let Value::Array(posts) = result["statuses"].take() {
-        for mut p in posts.into_iter() {
-            // let pic_infos = p["pic_infos"].take();
-            if let Value::Object(pic_infos) = p["pic_infos"].take() {
-                if let Value::Array(pic_ids) = p["pic_ids"].take() {
-                    for pi_id in pic_ids.into_iter() {
-                        let id = match pi_id {
-                            Value::String(id) => id,
-                            _ => "".to_string(),
-                        };
-                        let pic = pic_infos.get(&id).unwrap();
-                        let img_url = &pic["largest"]["url"];
-                        if let Value::String(aa) = img_url {
-                            list.push((aa.to_owned(), id));
-                        }
-                    }
-                }
-            }
-        }
-    }
-    for (_i, (url, id)) in list.iter().enumerate() {
-        let resp = client1.get(url).send()?;
-        if resp.status().is_success() {
-            let base_dir = String::new();
-            let img_path = base_dir + "d:/Pictures/weiback/" + &id + ".jpg";
-            let path = Path::new(&img_path);
-            if !path.exists() {
-                let mut pic_file: std::fs::File = std::fs::File::create(path)?;
-                let _ = pic_file.write_all(resp.bytes()?.as_ref());
-                println!("download:{}", &url);
-            } else {
-                println!("exist:{}", &url);
-            }
-        }
-    }
-
-    let max_id_option = &result["max_id_str"];
-    if max_id_option.is_string() {
-        let x = Some(max_id_option.as_str().unwrap().to_owned());
-        n += 1;
-        if n < PAGES {
-            let y = download_one_page(x, n)?;
-            return Ok(y);
-        } else {
-            return Ok(Option::None);
-        }
-    }
-    Ok(Option::None)
-}
 
 pub fn get_headers() -> Result<HeaderMap> {
     let mut  headers = HeaderMap::new();
-    let cookie = fs::read("cookie.json");
+    let cookie = fs::read("twitter_cookie.json");
     if let Ok(ck) = cookie {
         let cookie_str :String = String::from_utf8(ck).unwrap();
         let header_map :HashMap<String,String> = serde_json::from_str(&cookie_str)?;
@@ -119,20 +45,8 @@ pub fn get_headers() -> Result<HeaderMap> {
             headers.insert(HeaderName::from_str(&k)?, HeaderValue::from_str(&v)?);
         }
     }
-
+    println!("{:?}", &headers);
     Ok(headers)
 }
 
-pub fn get_client(header_map: HeaderMap) -> Result<Client> {
 
-    let cookie_store = Arc::new(CookieStoreMutex::default());
-    let client1 = Client::new();
-    // let client = Client::builder()
-    //     .cookie_store(true)
-    //     // .cookie_provider(cookie_store.clone())
-    //     .default_headers(header_map)
-    //     
-    //     .build()
-    //     .unwrap();
-    Ok(client1)
-}
